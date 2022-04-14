@@ -3,11 +3,11 @@ import type { CompilerHost, CompilerOptions } from '@angular/compiler-cli';
 import { createHash } from 'crypto';
 import * as path from 'path';
 import ts from 'typescript';
-import { NgPackageConfig } from '../../ng-package.schema';
 import { FileCache } from '../file-system/file-cache';
 import { BuildGraph } from '../graph/build-graph';
 import { Node } from '../graph/node';
 import { EntryPointNode, fileUrl } from '../ng-package/nodes';
+import { NgPackage } from '../ng-package/package';
 import { StylesheetProcessor } from '../styles/stylesheet-processor';
 import { ensureUnixPath } from '../utils/path';
 
@@ -17,7 +17,7 @@ export function cacheCompilerHost(
   compilerOptions: CompilerOptions,
   moduleResolutionCache: ts.ModuleResolutionCache,
   stylesheetProcessor?: StylesheetProcessor,
-  inlineStyleLanguage?: NgPackageConfig['inlineStyleLanguage'],
+  ngPackage?: NgPackage,
   sourcesFileCache: FileCache = entryPoint.cache.sourcesFileCache,
 ): CompilerHost {
   const compilerHost = ts.createIncrementalCompilerHost(compilerOptions);
@@ -127,15 +127,21 @@ export function cacheCompilerHost(
 
       const cache = sourcesFileCache.getOrCreate(fileName);
       if (cache.content === undefined) {
-        if (/(?:html?|svg)$/.test(path.extname(fileName))) {
-          // template
-          cache.content = compilerHost.readFile.call(this, fileName);
+        if (ngPackage?.resourceReader) {
+          const resourceReaderPath = path.relative(__dirname, ngPackage.resourceReader).replace(/\\/g, '/');
+          const resourceReaderFn = await import(resourceReaderPath);
+          cache.content = resourceReaderFn.default(fileName, compilerHost, stylesheetProcessor);
         } else {
-          // stylesheet
-          cache.content = await stylesheetProcessor.process({
-            filePath: fileName,
-            content: compilerHost.readFile.call(this, fileName),
-          });
+          if (/(?:html?|svg)$/.test(path.extname(fileName))) {
+            // template
+            cache.content = compilerHost.readFile.call(this, fileName);
+          } else {
+            // stylesheet
+            cache.content = await stylesheetProcessor.process({
+              filePath: fileName,
+              content: compilerHost.readFile.call(this, fileName),
+            });
+          }
         }
 
         if (cache.content === undefined) {
@@ -152,9 +158,9 @@ export function cacheCompilerHost(
         return null;
       }
 
-      if (inlineStyleLanguage) {
+      if (ngPackage?.inlineStyleLanguage) {
         const key = createHash('sha1').update(data).digest('hex');
-        const fileName = `${context.containingFile}-${key}.${inlineStyleLanguage}`;
+        const fileName = `${context.containingFile}-${key}.${ngPackage.inlineStyleLanguage}`;
         const cache = sourcesFileCache.getOrCreate(fileName);
         if (cache.content === undefined) {
           cache.content = await stylesheetProcessor.process({

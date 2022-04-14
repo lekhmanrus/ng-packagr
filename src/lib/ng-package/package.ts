@@ -61,6 +61,13 @@ export class NgPackage {
     return path.join(this.basePath, this.primary.$get('dest'));
   }
 
+  /** Absolute path of the package's resource reader function. */
+  public get resourceReader(): string | undefined {
+    const resourceReader = this.primary.$get('resourceReader');
+
+    return resourceReader ? path.join(this.basePath, resourceReader) : undefined;
+  }
+
   public get keepLifecycleScripts(): boolean {
     return this.primary.$get('keepLifecycleScripts');
   }

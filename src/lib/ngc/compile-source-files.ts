@@ -23,7 +23,6 @@ export async function compileSourceFiles(
   const tsConfigOptions: CompilerOptions = { ...tsConfig.options, ...extraOptions };
   const entryPoint: EntryPointNode = graph.find(isEntryPointInProgress());
   const ngPackageNode: PackageNode = graph.find(isPackage);
-  const inlineStyleLanguage = ngPackageNode.data.inlineStyleLanguage;
 
   const tsCompilerHost = ngccTransformCompilerHost(
     cacheCompilerHost(
@@ -32,7 +31,7 @@ export async function compileSourceFiles(
       tsConfigOptions,
       moduleResolutionCache,
       stylesheetProcessor,
-      inlineStyleLanguage,
+      ngPackageNode.data,
     ),
     tsConfigOptions,
     ngccProcessor,
